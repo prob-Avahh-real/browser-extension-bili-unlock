@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Universal Video Unlock",
+  "version": "1.0.0",
+  "description": "为 B 站等视频网站注入一键倍速与清晰度控制，尽量在未登录状态下提供常见播放增强体验。",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "视频增强",
+    "default_popup": "popup.html"
+  }
+}
