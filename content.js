@@ -209,7 +209,7 @@
     const container = document.createElement('div');
     container.id = PANEL_ID;
     container.innerHTML = `
-      <div class="title">B 站增强</div>
+      <div class="title">biliUnlock</div>
       <div class="row">
         <button class="small" data-speed="0.75">0.75x</button>
         <button class="small" data-speed="1">1x</button>
