@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+      - run: npm test
+
+      - name: Validate manifest.json
+        run: |
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+            for (const k of ['manifest_version', 'name', 'version']) {
+              if (!(k in m)) { console.error('manifest missing ' + k); process.exit(1); }
+            }
+            if (!fs.existsSync(m.background.service_worker)) { console.error('missing service worker'); process.exit(1); }
+            for (const cs of m.content_scripts || []) {
+              for (const f of cs.js || []) {
+                if (!fs.existsSync(f)) { console.error('missing content script ' + f); process.exit(1); }
+              }
+            }
+            console.log('manifest OK:', m.name, m.version);
+          "
+
+  package:
+    name: Package extension
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build zip
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('manifest.json','utf8')).version")
+          NAME=$(node -p "JSON.parse(require('fs').readFileSync('manifest.json','utf8')).name.toLowerCase().replace(/[^a-z0-9]+/g,'-')")
+          zip -r "${NAME}-${VERSION}.zip" . \
+            -x '.git/*' '.github/*' 'node_modules/*' 'test/*' '*.DS_Store' 'AGENTS.md' 'README.md' 'package*.json'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-zip
+          path: '*.zip'
+          retention-days: 30
+
+  release:
+    name: Release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build zip
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('manifest.json','utf8')).version")
+          NAME=$(node -p "JSON.parse(require('fs').readFileSync('manifest.json','utf8')).name.toLowerCase().replace(/[^a-z0-9]+/g,'-')")
+          zip -r "${NAME}-${VERSION}.zip" . \
+            -x '.git/*' '.github/*' 'node_modules/*' 'test/*' '*.DS_Store' 'AGENTS.md' 'README.md' 'package*.json'
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: '*.zip'
+          generate_release_notes: true
