@@ -1,6 +1,6 @@
 (() => {
   const PANEL_ID = 'video-unlock-panel';
-  const isBilibili = () => /bilibili|b23\.tv/.test(location.hostname);
+  const isBilibili = () => /(^|\.)(bilibili\.com|b23\.tv)$/.test(location.hostname);
 
   const styles = `
     #${PANEL_ID} {
@@ -82,7 +82,10 @@
   function seekBySeconds(seconds) {
     const video = getMainVideo();
     if (!video) return false;
-    video.currentTime = Math.min(video.duration || 0, Math.max(0, video.currentTime + seconds));
+    const next = video.currentTime + seconds;
+    video.currentTime = Number.isFinite(video.duration)
+      ? Math.min(video.duration, Math.max(0, next))
+      : Math.max(0, next);
     return true;
   }
 
@@ -90,7 +93,6 @@
     if (!el || !el.isConnected) return false;
     try {
       el.click();
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
       return true;
     } catch (e) {
       return false;
@@ -330,6 +332,8 @@
     enabled = response && response.enabled !== false;
     if (enabled) {
       init();
+    } else {
+      destroy();
     }
   });
 

@@ -39,6 +39,7 @@ function loadContent({
     addEventListener: () => {},
   };
 
+  const messageListeners = [];
   const chrome = {
     storage: {
       local: {
@@ -51,7 +52,7 @@ function loadContent({
       },
     },
     runtime: {
-      onMessage: { addListener: () => {} },
+      onMessage: { addListener: (fn) => messageListeners.push(fn) },
       sendMessage: (_msg, cb) => cb(enabledResponse),
     },
   };
@@ -73,7 +74,12 @@ function loadContent({
 
   runInSandbox(src, sandbox);
 
-  const panel = () => body.children.find((c) => c.id === 'video-unlock-panel') || null;
+  const panel = () =>
+    body.children.find((c) => c.id === 'video-unlock-panel' && c.isConnected) || null;
+
+  function runtimeMessage(msg) {
+    for (const fn of messageListeners) fn(msg);
+  }
 
   function clickButton(attrs) {
     const panelEl = panel();
@@ -83,7 +89,7 @@ function loadContent({
     return button;
   }
 
-  return { body, head, videos, storeSet, panel, clickButton };
+  return { body, head, videos, storeSet, panel, clickButton, runtimeMessage };
 }
 
 test('injects panel and styles on bilibili when a video is present', () => {
@@ -95,6 +101,22 @@ test('injects panel and styles on bilibili when a video is present', () => {
 test('does not inject panel on non-bilibili hosts', () => {
   const { panel } = loadContent({ hostname: 'example.com' });
   assert.equal(panel(), null);
+});
+
+test('does not inject panel on lookalike bilibili hosts', () => {
+  for (const hostname of ['evilbilibili.com', 'bilibili.evil.com', 'b23.tv.evil.com']) {
+    const { panel } = loadContent({ hostname });
+    assert.equal(panel(), null, hostname);
+  }
+});
+
+test('toggle-enabled message removes and restores the panel', () => {
+  const { panel, runtimeMessage } = loadContent();
+  assert.ok(panel(), 'panel initially present');
+  runtimeMessage({ type: 'toggle-enabled', enabled: false });
+  assert.equal(panel(), null, 'panel removed when disabled');
+  runtimeMessage({ type: 'toggle-enabled', enabled: true });
+  assert.ok(panel(), 'panel restored when re-enabled');
 });
 
 test('does not inject panel when extension is disabled', () => {
